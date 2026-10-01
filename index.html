@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerador de Etiquetas Térmicas</title>
+
+  <!-- Tailwind CSS para o formulário e layout do painel interativo -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Biblioteca QRCode.js para geração de QR Code de alta precisão no navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Configuração de Página Milimétrica para Impressão Térmica */
+    @page {
+      size: 10cm 15cm;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 10cm !important;
+        height: 15cm !important;
+        overflow: hidden !important;
+        background: #fff !important;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+
+      .print-area {
+        display: block !important;
+        position: relative !important;
+        width: 10cm !important;
+        height: 15cm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
+
+      .etiqueta-box {
+        position: absolute !important;
+        box-sizing: border-box !important;
+      }
+    }
+
+    /* Regras visuais da Etiqueta conforme especificações originais */
+    .etiqueta-box {
+      width: 12cm;
+      height: 4.5cm;
+      border: 2px solid black;
+      box-sizing: border-box;
+      padding: 6px 20px 6px 10px;
+      display: flex;
+      gap: 15px;
+      background: #ffffff;
+      font-family: Arial, sans-serif;
+      color: #000000;
+      text-transform: uppercase;
+    }
+
+    .conteudo {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .titulo {
+      font-family: "Arial Black", Arial, sans-serif;
+      font-size: 22px;
+      line-height: 1.15;
+      border-bottom: 2px solid black;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 900;
+      padding-bottom: 2px;
+    }
+
+    .usuarios {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: 1;
+      border-bottom: 2px solid black;
+      gap: 5px;
+      overflow: hidden;
+    }
+
+    .usuarios-texto {
+      font-size: 18px;
+      font-weight: bold;
+      line-height: 1.25;
+      letter-spacing: 0.2px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .rodape {
+      padding-top: 2px;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .qr {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      padding-right: 5px;
+    }
+
+    .qr .qr-code-img {
+      width: 70px;
+      height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qr .qr-code-img img,
+    .qr .qr-code-img canvas {
+      width: 70px !important;
+      height: 70px !important;
+    }
+
+    .qr span {
+      font-size: 10px;
+      font-weight: bold;
+      white-space: nowrap;
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+    }
+
+    .qr .logo-usuarios {
+      margin-top: 10px;
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+      flex-shrink: 0;
+      display: none;
+    }
+
+    /* Força maiúsculas nos inputs do formulário */
+    input.uppercase-input,
+    textarea.uppercase-input {
+      text-transform: uppercase;
+    }
+
+    .bobina-virtual {
+      width: 10cm;
+      height: 15cm;
+      position: relative;
+      background: white;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+  <!-- ==================== INTERFACE DE CONFIGURAÇÃO (NO-PRINT) ==================== -->
+  <div class="no-print">
+    <!-- Header Superior -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 py-3.5 px-6 sticky top-0 z-50 shadow-md">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <i data-lucide="tag" class="w-6 h-6 text-indigo-400"></i>
+          <div>
+            <h1 class="text-base font-bold leading-tight">Gerador de Etiquetas Térmicas</h1>
+            <p class="text-xs text-slate-400">Medida 12cm x 4.5cm orientada para bobina 10cm x 15cm</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3">
+          <button onclick="window.print()" class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-semibold text-sm rounded-lg shadow-sm transition-all duration-150">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>Imprimir Etiqueta</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Formulário de Preenchimento -->
+      <section class="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+        <div class="flex items-center justify-between border-b pb-3">
+          <div class="flex items-center gap-2 font-bold text-slate-800 text-base">
+            <i data-lucide="file-edit" class="w-5 h-5 text-indigo-600"></i>
+            <span>Dados da Etiqueta</span>
+          </div>
+          <span class="text-xs font-semibold px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+            Atualização Instantânea
+          </span>
+        </div>
+
+        <form id="labelForm" class="space-y-4" onsubmit="event.preventDefault();">
+          <!-- Campo Local / Setor -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Local / Setor</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                <i data-lucide="map-pin" class="w-4 h-4"></i>
+              </span>
+              <input type="text" id="campoLocal" class="uppercase-input w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="EX: ALMOXARIFADO" />
+            </div>
+          </div>
+
+          <!-- Campo Cargo / Sub-identificação -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Cargo / Sub-identificação</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                <i data-lucide="briefcase" class="w-4 h-4"></i>
+              </span>
+              <input type="text" id="campoCargo" class="uppercase-input w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="EX: TI - ATIVOS" />
+            </div>
+          </div>
+
+          <!-- Campo Usuários / Responsáveis -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-bold text-slate-600 uppercase">Usuários / Responsáveis</label>
+              <span id="linhasCounter" class="text-xs text-slate-400 font-medium">0/3 linhas</span>
+            </div>
+            <div class="relative">
+              <textarea id="campoUsuarios" rows="3" class="uppercase-input w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none font-mono" placeholder="DIGITE ATÉ 3 LINHAS (UMA POR RESPONSÁVEL)&#10;MARCOS SOUZA&#10;PAULO R."></textarea>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">Pressione Enter para pular linha (limite rígido de 3 linhas).</p>
+          </div>
+
+          <!-- Campo Serial -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-bold text-slate-600 uppercase">Serial (ST - ...)</label>
+              <span id="serialStatus" class="text-xs text-slate-400 font-medium">0/7 caracteres</span>
+            </div>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                <i data-lucide="hash" class="w-4 h-4"></i>
+              </span>
+              <input type="text" id="campoSerial" maxlength="7" class="uppercase-input w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-mono" placeholder="EX: AB12C34" />
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">Exatamente 7 dígitos alfanuméricos (sem espaços ou pontuação).</p>
+          </div>
+
+          <!-- Upload Exclusivo de Logo com Card de "Logo pronta" -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Logotipo / Ícone</label>
+            <div id="logoUploadBox" class="border border-slate-200 rounded-xl p-3 bg-white">
+              <input type="file" id="campoLogoFile" accept="image/*" class="hidden" />
+
+              <!-- Prompt quando vazio -->
+              <div id="uploadPrompt" class="border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-lg p-4 text-center cursor-pointer transition-colors" onclick="document.getElementById('campoLogoFile').click();">
+                <i data-lucide="upload" class="w-6 h-6 text-slate-400 mx-auto mb-1"></i>
+                <p class="text-xs text-slate-600 font-semibold">Clique para selecionar uma imagem</p>
+                <p class="text-[11px] text-slate-400">PNG, JPG ou SVG</p>
+              </div>
+
+              <!-- Pré-visualização com "✓ Logo pronta" e botão de remoção -->
+              <div id="uploadPreview" class="hidden flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center p-1 shadow-xs">
+                    <img id="thumbPreview" class="max-w-full max-h-full object-contain" src="" alt="Logo" />
+                  </div>
+                  <div>
+                    <span id="fileNameDisplay" class="text-xs text-slate-700 font-semibold block truncate max-w-[160px]">logo.png</span>
+                    <span class="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                      <i data-lucide="check" class="w-3 h-3 stroke-[3]"></i> Logo pronta
+                    </span>
+                  </div>
+                </div>
+                <button type="button" id="btnRemoverLogo" class="flex items-center gap-1.5 text-red-500 hover:text-red-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-red-200 bg-white hover:bg-red-50 transition-colors shadow-2xs">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  <span>Remover logotipo</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ajuste fino de posicionamento físico -->
+          <div class="pt-2 border-t border-slate-100">
+            <details class="text-xs text-slate-600">
+              <summary class="font-bold cursor-pointer hover:text-indigo-600 flex items-center gap-1 select-none">
+                <i data-lucide="sliders" class="w-3.5 h-3.5"></i> Calibrar margem física da impressora
+              </summary>
+              <div class="grid grid-cols-2 gap-3 mt-2 p-3 bg-slate-50 rounded-lg">
+                <div>
+                  <label class="block text-[11px] font-medium text-slate-500">Topo (mm):</label>
+                  <input type="number" id="calibTop" value="3" step="0.5" class="w-full mt-1 p-1 text-xs border rounded" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-medium text-slate-500">Esquerda (cm):</label>
+                  <input type="number" id="calibLeft" value="6" step="0.1" class="w-full mt-1 p-1 text-xs border rounded" />
+                </div>
+              </div>
+            </details>
+          </div>
+        </form>
+      </section>
+
+      <!-- Painel de Visualização em Tempo Real -->
+      <section class="lg:col-span-7 flex flex-col space-y-3">
+        <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center space-x-2 text-xs font-semibold text-slate-600">
+            <span>MODO DE VISÃO:</span>
+            <button id="btnModoBobina" class="px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+              Papel Real (10x15cm)
+            </button>
+            <button id="btnModoHorizontal" class="px-3 py-1.5 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200">
+              Etiqueta Horizontal
+            </button>
+          </div>
+          <span class="text-xs text-slate-400 font-medium">Escala: 100% (Tamanho real)</span>
+        </div>
+
+        <!-- Área de Preview -->
+        <div class="flex-1 bg-slate-200/70 border border-dashed border-slate-300 rounded-xl p-6 flex items-center justify-center min-h-[580px] overflow-auto">
+
+          <!-- MODO 1: Bobina Real 10x15cm com rotação de 90° -->
+          <div id="containerBobina" class="bobina-virtual relative shadow-2xl border border-slate-300">
+            <div class="absolute inset-0 pointer-events-none border border-slate-300 border-dashed m-1"></div>
+            <div class="absolute top-1 left-2 text-[9px] text-slate-400 select-none">Bobina 10cm x 15cm (Direção do avanço ➔)</div>
+
+            <!-- Etiqueta Girada 90 Graus -->
+            <div id="etiquetaPreviewBobina" class="etiqueta-box" style="transform: rotate(90deg); transform-origin: top left; position: absolute; top: 3mm; left: 6cm;">
+              <div class="conteudo">
+                <div class="titulo">
+                  <b id="prevTituloBobina"></b>
+                </div>
+                <div class="usuarios">
+                  <span class="usuarios-texto" id="prevUsuariosBobina"></span>
+                </div>
+                <div class="rodape"><b>NÃO REMOVER A ETIQUETA</b></div>
+              </div>
+              <div class="qr">
+                <div id="prevQrBobina" class="qr-code-img"></div>
+                <span id="prevSerialContainerBobina">ST - <span id="prevSerialBobina"></span></span>
+                <img id="prevLogoBobina" class="logo-usuarios" alt="Logo" />
+              </div>
+            </div>
+          </div>
+
+          <!-- MODO 2: Etiqueta Horizontal Direta para Conferência -->
+          <div id="containerHorizontal" class="hidden">
+            <div id="etiquetaPreviewHorizontal" class="etiqueta-box shadow-xl border-2 border-black">
+              <div class="conteudo">
+                <div class="titulo">
+                  <b id="prevTituloHorizontal"></b>
+                </div>
+                <div class="usuarios">
+                  <span class="usuarios-texto" id="prevUsuariosHorizontal"></span>
+                </div>
+                <div class="rodape"><b>NÃO REMOVER A ETIQUETA</b></div>
+              </div>
+              <div class="qr">
+                <div id="prevQrHorizontal" class="qr-code-img"></div>
+                <span id="prevSerialContainerHorizontal">ST - <span id="prevSerialHorizontal"></span></span>
+                <img id="prevLogoHorizontal" class="logo-usuarios" alt="Logo" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
+          <i data-lucide="info" class="w-4 h-4 mt-0.5 text-amber-600 flex-shrink-0"></i>
+          <div>
+            <b>Dica para Impressão Térmica:</b> Na caixa de diálogo de impressão do navegador, selecione <b>Tamanho do Papel: 100 x 150 mm (10x15cm)</b>, Margens: <b>Nenhuma</b> e desmarque <b>"Cabeçalhos e rodapés"</b>.
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==================== ELEMENTO EXCLUSIVO DE IMPRESSÃO (@media print) ==================== -->
+  <div class="print-area hidden">
+    <div id="etiquetaPrint" class="etiqueta-box" style="transform: rotate(90deg); transform-origin: top left; position: absolute; top: 3mm; left: 6cm;">
+      <div class="conteudo">
+        <div class="titulo">
+          <b id="printTitulo"></b>
+        </div>
+        <div class="usuarios">
+          <span class="usuarios-texto" id="printUsuarios"></span>
+        </div>
+        <div class="rodape"><b>NÃO REMOVER A ETIQUETA</b></div>
+      </div>
+      <div class="qr">
+        <div id="printQr" class="qr-code-img"></div>
+        <span>ST - <span id="printSerial"></span></span>
+        <img id="printLogo" class="logo-usuarios" alt="Logo" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== LÓGICA JAVASCRIPT ==================== -->
+  <script>
+    let logoDataUrl = null;
+    let qrGeneratorBobina = null;
+    let qrGeneratorHorizontal = null;
+    let qrGeneratorPrint = null;
+
+    const campoLocal = document.getElementById('campoLocal');
+    const campoCargo = document.getElementById('campoCargo');
+    const campoUsuarios = document.getElementById('campoUsuarios');
+    const campoSerial = document.getElementById('campoSerial');
+    const campoLogoFile = document.getElementById('campoLogoFile');
+    const btnRemoverLogo = document.getElementById('btnRemoverLogo');
+    const uploadPrompt = document.getElementById('uploadPrompt');
+    const uploadPreview = document.getElementById('uploadPreview');
+    const thumbPreview = document.getElementById('thumbPreview');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const serialStatus = document.getElementById('serialStatus');
+    const linhasCounter = document.getElementById('linhasCounter');
+
+    const calibTop = document.getElementById('calibTop');
+    const calibLeft = document.getElementById('calibLeft');
+
+    const btnModoBobina = document.getElementById('btnModoBobina');
+    const btnModoHorizontal = document.getElementById('btnModoHorizontal');
+    const containerBobina = document.getElementById('containerBobina');
+    const containerHorizontal = document.getElementById('containerHorizontal');
+
+    function initQRCodes() {
+      const config = {
+        text: " ",
+        width: 70,
+        height: 70,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      };
+
+      qrGeneratorBobina = new QRCode(document.getElementById("prevQrBobina"), config);
+      qrGeneratorHorizontal = new QRCode(document.getElementById("prevQrHorizontal"), config);
+      qrGeneratorPrint = new QRCode(document.getElementById("printQr"), config);
+    }
+
+    function forceUppercaseInput(element) {
+      const start = element.selectionStart;
+      const end = element.selectionEnd;
+      element.value = element.value.toUpperCase();
+      element.setSelectionRange(start, end);
+    }
+
+    function sanitizeUsuariosTextarea(textarea) {
+      let lines = textarea.value.toUpperCase().split('\n');
+      if (lines.length > 3) {
+        lines = lines.slice(0, 3);
+      }
+      textarea.value = lines.join('\n');
+      linhasCounter.textContent = `${lines.filter(l => l.trim().length > 0).length}/3 linhas`;
+    }
+
+    function sanitizeSerialInput(input) {
+      const clean = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+      input.value = clean;
+
+      if (clean.length === 0) {
+        serialStatus.textContent = "0/7 caracteres";
+        serialStatus.className = "text-xs text-slate-400 font-medium";
+      } else if (clean.length < 7) {
+        serialStatus.textContent = `${clean.length}/7 (incompleto)`;
+        serialStatus.className = "text-xs text-amber-600 font-semibold";
+      } else {
+        serialStatus.textContent = "7/7 (completo)";
+        serialStatus.className = "text-xs text-emerald-600 font-semibold";
+      }
+    }
+
+    function formatarTitulo(local, cargo) {
+      const loc = (local || '').trim().toUpperCase();
+      const car = (cargo || '').trim().toUpperCase();
+
+      if (loc && car) {
+        return `${loc} - ${car}`;
+      } else if (loc) {
+        return loc;
+      } else if (car) {
+        return car;
+      }
+      return '';
+    }
+
+    function atualizarEtiqueta() {
+      const tituloFinal = formatarTitulo(campoLocal.value, campoCargo.value);
+      const usuariosTexto = campoUsuarios.value.toUpperCase();
+      const serialTexto = campoSerial.value.toUpperCase();
+
+      document.getElementById('prevTituloBobina').innerText = tituloFinal;
+      document.getElementById('prevTituloHorizontal').innerText = tituloFinal;
+      document.getElementById('printTitulo').innerText = tituloFinal;
+
+      document.getElementById('prevUsuariosBobina').innerText = usuariosTexto;
+      document.getElementById('prevUsuariosHorizontal').innerText = usuariosTexto;
+      document.getElementById('printUsuarios').innerText = usuariosTexto;
+
+      document.getElementById('prevSerialBobina').innerText = serialTexto;
+      document.getElementById('prevSerialHorizontal').innerText = serialTexto;
+      document.getElementById('printSerial').innerText = serialTexto;
+
+      const valorQr = serialTexto || " ";
+      if (qrGeneratorBobina) qrGeneratorBobina.makeCode(valorQr);
+      if (qrGeneratorHorizontal) qrGeneratorHorizontal.makeCode(valorQr);
+      if (qrGeneratorPrint) qrGeneratorPrint.makeCode(valorQr);
+
+      const logos = [
+        document.getElementById('prevLogoBobina'),
+        document.getElementById('prevLogoHorizontal'),
+        document.getElementById('printLogo')
+      ];
+
+      logos.forEach(img => {
+        if (logoDataUrl) {
+          img.src = logoDataUrl;
+          img.style.display = 'block';
+        } else {
+          img.removeAttribute('src');
+          img.style.display = 'none';
+        }
+      });
+    }
+
+    function atualizarCalibracao() {
+      const topVal = `${calibTop.value}mm`;
+      const leftVal = `${calibLeft.value}cm`;
+
+      const etiquetaBobina = document.getElementById('etiquetaPreviewBobina');
+      const etiquetaPrint = document.getElementById('etiquetaPrint');
+
+      etiquetaBobina.style.top = topVal;
+      etiquetaBobina.style.left = leftVal;
+
+      etiquetaPrint.style.top = topVal;
+      etiquetaPrint.style.left = leftVal;
+    }
+
+    campoLocal.addEventListener('input', () => {
+      forceUppercaseInput(campoLocal);
+      atualizarEtiqueta();
+    });
+
+    campoCargo.addEventListener('input', () => {
+      forceUppercaseInput(campoCargo);
+      atualizarEtiqueta();
+    });
+
+    campoUsuarios.addEventListener('input', () => {
+      sanitizeUsuariosTextarea(campoUsuarios);
+      atualizarEtiqueta();
+    });
+
+    campoUsuarios.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const lines = campoUsuarios.value.split('\n');
+        if (lines.length >= 3) {
+          e.preventDefault();
+        }
+      }
+    });
+
+    campoUsuarios.addEventListener('paste', () => {
+      setTimeout(() => {
+        sanitizeUsuariosTextarea(campoUsuarios);
+        atualizarEtiqueta();
+      }, 0);
+    });
+
+    campoSerial.addEventListener('input', () => {
+      sanitizeSerialInput(campoSerial);
+      atualizarEtiqueta();
+    });
+
+    calibTop.addEventListener('input', atualizarCalibracao);
+    calibLeft.addEventListener('input', atualizarCalibracao);
+
+    // Upload com renderização do estado "✓ Logo pronta"
+    campoLogoFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          logoDataUrl = evt.target.result;
+          thumbPreview.src = logoDataUrl;
+          fileNameDisplay.textContent = file.name;
+          uploadPrompt.classList.add('hidden');
+          uploadPreview.classList.remove('hidden');
+          atualizarEtiqueta();
+          lucide.createIcons();
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Remoção total do Logotipo
+    btnRemoverLogo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      logoDataUrl = null;
+      campoLogoFile.value = "";
+      thumbPreview.src = "";
+      fileNameDisplay.textContent = "";
+      uploadPreview.classList.add('hidden');
+      uploadPrompt.classList.remove('hidden');
+      atualizarEtiqueta();
+    });
+
+    btnModoBobina.addEventListener('click', () => {
+      containerBobina.classList.remove('hidden');
+      containerHorizontal.classList.add('hidden');
+      btnModoBobina.className = "px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 font-bold border border-indigo-200";
+      btnModoHorizontal.className = "px-3 py-1.5 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200";
+    });
+
+    btnModoHorizontal.addEventListener('click', () => {
+      containerBobina.classList.add('hidden');
+      containerHorizontal.classList.remove('hidden');
+      btnModoHorizontal.className = "px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 font-bold border border-indigo-200";
+      btnModoBobina.className = "px-3 py-1.5 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200";
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initQRCodes();
+      atualizarCalibracao();
+      atualizarEtiqueta();
+    });
+  </script>
+</body>
+
+</html>
